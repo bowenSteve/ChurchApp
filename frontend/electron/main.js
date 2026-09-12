@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, screen } = require('electron')
 const path = require('path')
 const { spawn } = require('child_process')
+const { autoUpdater } = require('electron-updater')
 
 const isDev = !app.isPackaged
 const BACKEND_PORT = process.env.CHURCH_PORT || '8001'
@@ -9,6 +10,28 @@ const BACKEND_URL = `http://localhost:${BACKEND_PORT}`
 let backendProcess = null
 let operatorWindow = null
 let displayWindow = null
+
+// ── Auto-update ──────────────────────────────────────────────────────────
+// Only ever finds a *published GitHub Release* (created by the release-tag
+// workflow) — an ordinary push to main has nothing for this to see, since
+// that workflow only uploads a CI artifact, not a release. autoDownload is
+// off so an update never lands on the church's machine without the operator
+// choosing to install it.
+autoUpdater.autoDownload = false
+autoUpdater.autoInstallOnAppQuit = false
+
+function sendUpdateStatus(type, payload = {}) {
+  BrowserWindow.getAllWindows().forEach((win) => win.webContents.send('update-status', { type, ...payload }))
+}
+
+if (!isDev) {
+  autoUpdater.on('checking-for-update', () => sendUpdateStatus('checking'))
+  autoUpdater.on('update-available', (info) => sendUpdateStatus('available', { version: info.version }))
+  autoUpdater.on('update-not-available', () => sendUpdateStatus('not-available'))
+  autoUpdater.on('download-progress', (p) => sendUpdateStatus('downloading', { percent: Math.round(p.percent) }))
+  autoUpdater.on('update-downloaded', (info) => sendUpdateStatus('downloaded', { version: info.version }))
+  autoUpdater.on('error', (err) => sendUpdateStatus('error', { message: err.message }))
+}
 
 // In dev, the backend is already running via the normal `uvicorn --reload`
 // workflow (see start.txt) — only a packaged build needs Electron to manage
@@ -76,6 +99,26 @@ app.on('before-quit', stopBackend)
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createOperatorWindow()
+})
+
+// ── Updates ──────────────────────────────────────────────────────────────
+
+ipcMain.handle('get-app-version', () => app.getVersion())
+
+ipcMain.handle('check-for-updates', () => {
+  if (isDev) {
+    sendUpdateStatus('dev-mode')
+    return
+  }
+  autoUpdater.checkForUpdates()
+})
+
+ipcMain.handle('download-update', () => {
+  autoUpdater.downloadUpdate()
+})
+
+ipcMain.handle('install-update', () => {
+  autoUpdater.quitAndInstall()
 })
 
 // ── Screens ──────────────────────────────────────────────────────────────

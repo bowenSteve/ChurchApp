@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import UpdateChecker from '../../components/settings/UpdateChecker'
 import { useSettings, useUpdateSettings } from '../../hooks/useSettings'
 import type { Settings } from '../../types'
 
@@ -109,6 +110,8 @@ export default function SettingsPage() {
       <button className="btn btn-primary" onClick={save}>
         Save Settings
       </button>
+
+      <UpdateChecker />
     </div>
   )
 }

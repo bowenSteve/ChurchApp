@@ -1,3 +1,5 @@
+import { getElectronBridge } from './electronBridge'
+
 export interface ScreenInfo {
   id: string
   label: string
@@ -62,36 +64,26 @@ export const webScreenProvider: ScreenProvider = {
 // fullscreen works here (no browser gesture restriction), unlike the web
 // provider's window.open, which the display page still nudges into
 // fullscreen itself on first click.
-interface ElectronBridge {
-  getScreens: () => Promise<ScreenInfo[]>
-  openDisplayWindow: (screenId: string, url: string) => Promise<void>
-}
-interface WindowWithElectron extends Window {
-  electron?: ElectronBridge
-}
-
 export const electronScreenProvider: ScreenProvider = {
   isSupported() {
-    return typeof (window as WindowWithElectron).electron !== 'undefined'
+    return getElectronBridge() !== null
   },
 
   async getScreens() {
-    const electron = (window as WindowWithElectron).electron
+    const electron = getElectronBridge()
     if (!electron) return []
     return electron.getScreens()
   },
 
   async openDisplayWindow(screen, url) {
-    const electron = (window as WindowWithElectron).electron
+    const electron = getElectronBridge()
     if (!electron) return
     await electron.openDisplayWindow(screen.id, url)
   },
 }
 
 export function getScreenProvider(): ScreenProvider {
-  return typeof (window as WindowWithElectron).electron !== 'undefined'
-    ? electronScreenProvider
-    : webScreenProvider
+  return getElectronBridge() !== null ? electronScreenProvider : webScreenProvider
 }
 
 const STORAGE_KEY = 'church-display-screen-id'
